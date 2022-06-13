@@ -16,7 +16,7 @@ A weather dashboard application that features dynamically updated HTML and CSS. 
 * JavaScript
 
 ## Screen Shot 
-![Screenshot](/Weather-dash-board/asset/image/screenshot.png)
+![Screenshot](./asset/image/screenshot.png)
 
 # Link
 
