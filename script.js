@@ -1,127 +1,287 @@
-function initPage() {
-    const inputEl = document.getElementById("city-input");
-    const searchEl = document.getElementById("search-button");
-    const clearEl = document.getElementById("clear-history");
-    const nameEl = document.getElementById("city-name");
-    const currentPicEl = document.getElementById("current-pic");
-    const currentTempEl = document.getElementById("temperature");
-    const currentHumidityEl = document.getElementById("humidity");4
-    const currentWindEl = document.getElementById("wind-speed");
-    const currentUVEl = document.getElementById("UV-index");
-    const historyEl = document.getElementById("history");
-    let searchHistory = JSON.parse(localStorage.getItem("search")) || [];
-    console.log(searchHistory);
-    
+////////// VARIABLES ///////////
 
-    const APIKey = "c9a9ed03a355403f4cb9a36e931c0b4a";
-//  When search button is clicked, read the city name typed by the user
+// element selectors for search input form event handler
+var searchFormEl = document.querySelector("#search-form");
+var cityInputEl = document.querySelector("#city-input");
 
-    function getWeather(cityName) {
-//  Using saved city name, execute a current condition get request from open weather map api
-        let queryURL = "https://api.openweathermap.org/data/2.5/weather?q=" + cityName + "&appid=" + APIKey;
-        axios.get(queryURL)
-        .then(function(response){
-            console.log(response);
-//  Parse response to display current conditions
-        //  Method for using "date" objects obtained from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Date
-            const currentDate = new Date(response.data.dt*1000);
-            console.log(currentDate);
-            const day = currentDate.getDate();
-            const month = currentDate.getMonth() + 1;
-            const year = currentDate.getFullYear();
-            nameEl.innerHTML = response.data.name + " (" + month + "/" + day + "/" + year + ") ";
-            let weatherPic = response.data.weather[0].icon;
-            currentPicEl.setAttribute("src","https://openweathermap.org/img/wn/" + weatherPic + "@2x.png");
-            currentPicEl.setAttribute("alt",response.data.weather[0].description);
-            currentTempEl.innerHTML = "Temperature: " + k2f(response.data.main.temp) + " &#176F";
-            currentHumidityEl.innerHTML = "Humidity: " + response.data.main.humidity + "%";
-            currentWindEl.innerHTML = "Wind Speed: " + response.data.wind.speed + " MPH";
-        let lat = response.data.coord.lat;
-        let lon = response.data.coord.lon;
-        let UVQueryURL = "https://api.openweathermap.org/data/2.5/uvi/forecast?lat=" + lat + "&lon=" + lon + "&appid=" + APIKey + "&cnt=1";
-        axios.get(UVQueryURL)
-        .then(function(response){
-            let UVIndex = document.createElement("span");
-            UVIndex.setAttribute("class","badge badge-danger");
-            UVIndex.innerHTML = response.data[0].value;
-            currentUVEl.innerHTML = "UV Index: ";
-            currentUVEl.append(UVIndex);
-        });
-//  Using saved city name, execute a 5-day forecast get request from open weather map api
-        let cityID = response.data.id;
-        let forecastQueryURL = "https://api.openweathermap.org/data/2.5/forecast?id=" + cityID + "&appid=" + APIKey;
-        axios.get(forecastQueryURL)
-        .then(function(response){
-//  Parse response to display forecast for next 5 days underneath current conditions
-            console.log(response);
-            const forecastEls = document.querySelectorAll(".forecast");
-            for (i=0; i<forecastEls.length; i++) {
-                forecastEls[i].innerHTML = "";
-                const forecastIndex = i*8 + 4;
-                const forecastDate = new Date(response.data.list[forecastIndex].dt * 1000);
-                const forecastDay = forecastDate.getDate();
-                const forecastMonth = forecastDate.getMonth() + 1;
-                const forecastYear = forecastDate.getFullYear();
-                const forecastDateEl = document.createElement("p");
-                forecastDateEl.setAttribute("class","mt-3 mb-0 forecast-date");
-                forecastDateEl.innerHTML = forecastMonth + "/" + forecastDay + "/" + forecastYear;
-                forecastEls[i].append(forecastDateEl);
-                const forecastWeatherEl = document.createElement("img");
-                forecastWeatherEl.setAttribute("src","https://openweathermap.org/img/wn/" + response.data.list[forecastIndex].weather[0].icon + "@2x.png");
-                forecastWeatherEl.setAttribute("alt",response.data.list[forecastIndex].weather[0].description);
-                forecastEls[i].append(forecastWeatherEl);
-                const forecastTempEl = document.createElement("p");
-                forecastTempEl.innerHTML = "Temp: " + k2f(response.data.list[forecastIndex].main.temp) + " &#176F";
-                forecastEls[i].append(forecastTempEl);
-                const forecastHumidityEl = document.createElement("p");
-                forecastHumidityEl.innerHTML = "Humidity: " + response.data.list[forecastIndex].main.humidity + "%";
-                forecastEls[i].append(forecastHumidityEl);
-                }
-            })
-        });  
+// element selectors for search list event handler
+var searchListEl = document.querySelector("#city-search-list");
+var cityBtnEl = document.querySelector(".city-btn");
+
+// element selectors for clear search history event handler
+var clearHistoryEl = document.querySelector("#clear-btn-section");
+var clearBtnEl = document.querySelector(".clear-btn");
+
+// element selectors for weather overview section
+var overviewContainerEl = document.querySelector("#weather-overview");
+
+// element selectors for forecast section
+var forecastSectionEl = document.querySelector(".forecast");
+var forecastTitleEl = document.querySelector(".forecast-title");
+var forecastContainerEl = document.querySelector("#forecast-cards");
+
+// empty array to store all search inputs
+var searchHistory = []
+
+
+////////// EVENT HANDLERS ///////////
+
+// event handler that will display weather data for a city when the form submit icon is clicked with a search value
+var formSubmitHandler = function(event) {
+    event.preventDefault();
+
+    // get value from input element
+    var city = cityInputEl.value.trim();
+
+    //if a city name is entered, run functions. Otherwise, prompt user to enter a city name
+    if (city) {
+        // run function to get city latitude and longitude data
+        getCityCoords(city);
+        cityInputEl.value = "";
+
+        // run function to add city input to search list
+        createSearchList(city);
     }
-
-    searchEl.addEventListener("click",function() {
-        const searchTerm = inputEl.value;
-        getWeather(searchTerm);
-        searchHistory.push(searchTerm);
-        localStorage.setItem("search",JSON.stringify(searchHistory));
-        renderSearchHistory();
-    })
-
-    clearEl.addEventListener("click",function() {
-        searchHistory = [];
-        renderSearchHistory();
-    })
-
-    function k2f(K) {
-        return Math.floor((K - 273.15) *1.8 +32);
+    // prompt user to enter an input if no input exists
+    else {
+    alert("Please enter a city name");
     }
+};
 
-    function renderSearchHistory() {
-        historyEl.innerHTML = "";
-        for (let i=0; i<searchHistory.length; i++) {
-            const historyItem = document.createElement("input");
-            // <input type="text" readonly class="form-control-plaintext" id="staticEmail" value="email@example.com"></input>
-            historyItem.setAttribute("type","text");
-            historyItem.setAttribute("readonly",true);
-            historyItem.setAttribute("class", "form-control d-block bg-white");
-            historyItem.setAttribute("value", searchHistory[i]);
-            historyItem.addEventListener("click",function() {
-                getWeather(historyItem.value);
-            })
-            historyEl.append(historyItem);
-        }
-    }
+// event handler that will display weather data for a city when a search history button is clicked
+var buttonClickHandler = function(event) {
+    // get value from input element
+    var city = event.target.getAttribute("data-city");
 
-    renderSearchHistory();
-    if (searchHistory.length > 0) {
-        getWeather(searchHistory[searchHistory.length - 1]);
-    }
+    // run value through function to display related weather info
+    getCityCoords(city);
+};
 
+// event handler that will clear search history list when clear history button is clicked
+var clearHistoryHandler = function(event) {
+    // clear search list HTML element
+    searchListEl.innerHTML = null;
 
-//  Save user's search requests and display them underneath search form
-//  When page loads, automatically generate current conditions and 5-day forecast for the last city the user searched for
+    // clear search items from array
+    searchHistory = [];
 
+    // hide clear button
+    clearBtnEl.setAttribute("style", "display: none");
 }
-initPage();
+
+
+////////// GENERAL FUNCTIONS ///////////
+
+// Runs within formSubmitHandler function after search submit button is pressed. Takes searched city as its argument. This function adds each searched city to the searchHistory array, which is then modified to not include any duplicates.
+var createSearchList = function(city) {
+    // clear search list and display 'clear search history' button by removing display:none style
+    searchListEl.innerHTML = null;
+    clearBtnEl.removeAttribute("style");
+
+    // add new search input to start of search history list
+    searchHistory.unshift(city);
+
+    // create search history array variable with no duplicate values
+    uniqueSearchHistory = Array.from(new Set(searchHistory));
+    console.log(uniqueSearchHistory);
+
+    for (i = 0; i < uniqueSearchHistory.length; i++) {
+
+        // create list item elements
+        listItemEl = document.createElement("li");
+
+        // create button elements, each with city name added as data attribute to be used with button handler
+        searchHistoryBtnEl = document.createElement("button");
+        searchHistoryBtnEl.setAttribute("class", "btn city-btn");
+        searchHistoryBtnEl.setAttribute("data-city", uniqueSearchHistory[i]);
+        searchHistoryBtnEl.textContent = uniqueSearchHistory[i];
+        listItemEl.appendChild(searchHistoryBtnEl);
+
+        searchListEl.appendChild(listItemEl);
+    }
+
+    saveSearchList(uniqueSearchHistory);
+}
+
+
+////////// STORAGE FUNCTIONS ///////////
+
+// save updated uniqueSearchHistory array to localStorage
+var saveSearchList = function(uniqueSearchHistory) {
+    localStorage.setItem("cities", JSON.stringify(uniqueSearchHistory));
+
+    var storedCities = JSON.parse(localStorage.getItem("cities"));
+}
+
+// get saved search array from localStorage and display to page as buttons
+var loadSearchList = function() {
+    var storedCities = JSON.parse(localStorage.getItem("cities"));
+    console.log(storedCities);
+
+    // for (i = 0; 0 < storedCities.length; i++) {
+    //     createSearchList(storedCities[i]);
+    // }
+}
+
+
+////////// DATA RETRIEVAL FUNCTIONS ///////////
+var getCityCoords = function(city) {
+    // format the OpenWeather api url for city name
+    var apiUrl = "https://api.openweathermap.org/data/2.5/weather?q=" + city + "&units=imperial&appid=f1861af816f9e98e7d029ccebf696d61";
+
+    fetch(apiUrl).then(function(response) {
+        if (response.ok) {
+            response.json().then(function(data) {
+
+                var cityLat = data.coord.lat;
+                var cityLon = data.coord.lon;
+
+                getCityData(cityLat, cityLon, city);
+            });
+        }
+
+        else {
+            alert("Error: " + response.statusText);
+          }
+    });
+}
+
+var getCityData = function(cityLat, cityLon, city) {
+    // format the OpenWeather api url for lat & lon
+    var apiUrl = "https://api.openweathermap.org/data/2.5/onecall?lat=" + cityLat + "&lon=" + cityLon + "&units=imperial&appid=f1861af816f9e98e7d029ccebf696d61";
+
+    fetch(apiUrl).then(function(response) {
+        response.json().then(function(data) {
+        console.log(data);
+
+        displayOverview(data, city);
+        });
+    });
+}
+
+////////// HTML/CSS DISPLAY FUNCTIONS ///////////
+
+var displayOverview = function(data, city) {
+    // clear old content from overview container and display it by removing display:none style
+    overviewContainerEl.innerHTML = null;
+    overviewContainerEl.removeAttribute("style");
+
+    // Create and append a title element
+    overviewTitleEl = document.createElement("h2");
+    overviewTitleEl.setAttribute("class", "overview-title");
+    overviewTitleEl.textContent = city;
+    overviewContainerEl.appendChild(overviewTitleEl);
+
+    // Create and append current date
+    var currentDate = new Date();
+    var month = currentDate.getMonth()+1;
+    var day = currentDate.getDate();
+    var year = currentDate.getFullYear();
+    var fullDate0 = month + "/" + day + "/" + year;
+
+    dateEl = document.createElement("span");
+    dateEl.textContent = " (" + fullDate0 + ") ";
+    overviewTitleEl.appendChild(dateEl);
+
+    // Create and append an icon image
+    var iconID = data.daily[0].weather[0].icon;
+    overviewTitleIconEl = document.createElement("img");
+    overviewTitleIconEl.setAttribute("src", "http://openweathermap.org/img/wn/" + iconID + "@2x.png");
+    overviewTitleIconEl.setAttribute("class", "overview-icon");
+    overviewTitleEl.appendChild(overviewTitleIconEl);
+
+    // Create and append a p element for temperature
+    var temperature = "Temperature: " + data.daily[0].temp.day + " °F";
+    temperatureEl = document.createElement("p");
+    temperatureEl.innerText = temperature;
+    overviewContainerEl.appendChild(temperatureEl);
+
+    // Create and append a p element for humidity
+    var humidity = "Humidity: " + data.daily[0].humidity + "%";
+    humidityEl = document.createElement("p");
+    humidityEl.innerText = humidity;
+    overviewContainerEl.appendChild(humidityEl);
+
+    // Create and append a p element for wind speed
+    var windSpeed = "Wind Speed: " + data.daily[0].wind_speed + " MPH";
+    windSpeedEl = document.createElement("p");
+    windSpeedEl.innerText = windSpeed;
+    overviewContainerEl.appendChild(windSpeedEl);
+
+    // Create and append a p element for UV Index
+    var uvIndex = data.daily[0].uvi;
+    uvIndexEl = document.createElement("p");
+
+    // evaluate and style uv index
+    if (uvIndex <= 2) {
+        uvIndexEl.innerHTML = "UV Index: <span class='uvi uvi-low'>" + uvIndex + "</span>";
+    }
+    else if (uvIndex > 2 && uvIndex <= 6) {
+        uvIndexEl.innerHTML = "UV Index: <span class='uvi uvi-moderate'>" + uvIndex + "</span>";
+    }
+    else if (uvIndex > 6) {
+        uvIndexEl.innerHTML = "UV Index: <span class='uvi uvi-high'>" + uvIndex + "</span>";
+    }
+
+    overviewContainerEl.appendChild(uvIndexEl);
+
+    displayForecast(data);
+}
+
+var displayForecast = function(data) {
+    // clear old content
+    forecastContainerEl.innerHTML = null;
+
+    // add forecast section title
+    forecastTitleEl.textContent = "5-Day Forecast";
+
+    // Create and display forecast cards for each of the five forecast days
+    for (var i = 1; i < 6; i++) {
+
+        // Create forecast card div element
+        var forecastCardEl = document.createElement("div");
+        forecastCardEl.setAttribute("class", "forecast-card");
+
+        // Create date element for each forecast day
+        var currentDate = new Date();
+        var month = currentDate.getMonth()+1;
+        var day = currentDate.getDate() + parseInt([i]);
+        var year = currentDate.getFullYear();
+        var fullDate = month + "/" + day + "/" + year;
+
+        dateEl = document.createElement("h4");
+        dateEl.textContent = fullDate;
+
+        forecastCardEl.appendChild(dateEl);
+
+        // Create and append an icon image
+        var iconID = data.daily[i].weather[0].icon;
+        forecastIconEl = document.createElement("img");
+        forecastIconEl.setAttribute("src", "http://openweathermap.org/img/wn/" + iconID + "@2x.png");
+        forecastIconEl.setAttribute("class", "forecast-icon");
+        forecastCardEl.appendChild(forecastIconEl);
+
+        // Create and append a p element for temperature
+        var temperature = "Temp: " + data.daily[i].temp.day + " °F";
+        temperatureEl = document.createElement("p");
+        temperatureEl.innerText = temperature;
+        forecastCardEl.appendChild(temperatureEl);
+
+        // Create and append a p element for humidity
+        var humidity = "Humidity: " + data.daily[i].humidity + "%";
+        humidityEl = document.createElement("p");
+        humidityEl.innerText = humidity;
+        forecastCardEl.appendChild(humidityEl);
+
+        forecastContainerEl.appendChild(forecastCardEl);
+    }
+}
+
+
+////////// EVENT LISTENERS ///////////
+
+searchFormEl.addEventListener("submit", formSubmitHandler);
+searchListEl.addEventListener("click", buttonClickHandler);
+clearHistoryEl.addEventListener("click", clearHistoryHandler);
+
+// loadSearchList();
